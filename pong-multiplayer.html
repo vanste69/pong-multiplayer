@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>PONG — Multiplayer</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; touch-action: none; }
+  body {
+    background: #0a0a0f;
+    color: #e8e8f0;
+    font-family: 'Courier New', monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+
+  #screen-connect, #screen-game, #screen-lobby {
+    display: none;
+    width: 100%;
+    max-width: 480px;
+    padding: 1.5rem 1rem;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    min-height: 100vh;
+  }
+  .active { display: flex !important; }
+
+  h1 {
+    font-size: 2.8rem;
+    letter-spacing: 0.3em;
+    color: #fff;
+    text-shadow: 0 0 20px rgba(255,255,255,0.3);
+    margin-bottom: 0.5rem;
+  }
+  .subtitle {
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
+    color: #555;
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+  }
+
+  .btn {
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.3);
+    color: #e8e8f0;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+    letter-spacing: 0.1em;
+    padding: 0.85rem 2rem;
+    cursor: pointer;
+    width: 100%;
+    max-width: 280px;
+    transition: background 0.15s, border-color 0.15s;
+    text-transform: uppercase;
+  }
+  .btn:active { background: rgba(255,255,255,0.1); }
+  .btn.primary {
+    border-color: rgba(255,255,255,0.7);
+    color: #fff;
+  }
+  .btn.green { border-color: #4cff91; color: #4cff91; }
+  .btn.red { border-color: #ff4c6a; color: #ff4c6a; }
+
+  .card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 4px;
+    padding: 1rem;
+    width: 100%;
+    max-width: 340px;
+  }
+  .card label {
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    color: #666;
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 0.5rem;
+  }
+  textarea {
+    background: rgba(0,0,0,0.4);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: #b0ffc0;
+    font-family: 'Courier New', monospace;
+    font-size: 0.7rem;
+    line-height: 1.4;
+    width: 100%;
+    min-height: 90px;
+    resize: none;
+    padding: 0.6rem;
+    word-break: break-all;
+  }
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 6px;
+  }
+  .dot-yellow { background: #ffcc00; box-shadow: 0 0 6px #ffcc00; }
+  .dot-green { background: #4cff91; box-shadow: 0 0 6px #4cff91; }
+  .dot-red { background: #ff4c6a; box-shadow: 0 0 6px #ff4c6a; }
+  .status-line {
+    font-size: 0.75rem;
+    color: #888;
+    text-align: center;
+    min-height: 1.2em;
+  }
+  .divider {
+    width: 100%;
+    max-width: 340px;
+    border: none;
+    border-top: 1px solid rgba(255,255,255,0.07);
+  }
+
+  /* ---- GAME SCREEN ---- */
+  #screen-game {
+    padding: 0;
+    gap: 0;
+    justify-content: center;
+  }
+  #score-bar {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 1.2rem;
+    font-size: 1.8rem;
+    letter-spacing: 0.2em;
+    color: rgba(255,255,255,0.8);
+    position: relative;
+  }
+  #score-bar .mid {
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+    color: #444;
+    text-transform: uppercase;
+  }
+  #canvas-wrap {
+    position: relative;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+  }
+  canvas {
+    display: block;
+    background: #0a0a0f;
+    border-top: 1px solid rgba(255,255,255,0.05);
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  #touch-left, #touch-right {
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 50%;
+    z-index: 10;
+    opacity: 0;
+  }
+  #touch-left { left: 0; }
+  #touch-right { right: 0; }
+  #ctrl-bar {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    padding: 0.4rem 0.5rem;
+    gap: 0.3rem;
+  }
+  .ctrl-btn {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.5);
+    font-family: 'Courier New', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    padding: 0.5rem 0.8rem;
+    cursor: pointer;
+    text-transform: uppercase;
+    flex: 1;
+    text-align: center;
+    user-select: none;
+  }
+  .ctrl-btn:active { background: rgba(255,255,255,0.1); }
+  #msg-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(10,10,15,0.88);
+    border: 1px solid rgba(255,255,255,0.12);
+    padding: 1.2rem 2rem;
+    text-align: center;
+    pointer-events: none;
+    z-index: 20;
+    display: none;
+    white-space: nowrap;
+  }
+  #msg-overlay.show { display: block; }
+  #msg-overlay .big { font-size: 1.4rem; letter-spacing: 0.1em; margin-bottom: 0.3rem; }
+  #msg-overlay .small { font-size: 0.7rem; color: #666; letter-spacing: 0.1em; }
+</style>
+</head>
+<body>
+
+<!-- CONNECT SCREEN -->
+<div id="screen-connect" class="active">
+  <h1>PONG</h1>
+  <p class="subtitle">Multiplayer · WebRTC P2P</p>
+
+  <button class="btn primary" onclick="startHost()">◉ Crea partita (Host)</button>
+  <button class="btn" onclick="showJoin()">◎ Unisciti (Client)</button>
+
+  <p class="status-line" id="conn-status"></p>
+
+  <div class="card" id="host-panel" style="display:none">
+    <label>1. Copia questo codice e mandalo al tuo avversario</label>
+    <textarea id="offer-out" readonly onclick="this.select()"></textarea>
+    <button class="btn" style="margin-top:0.6rem; max-width:100%; font-size:0.75rem" onclick="copyOffer()">Copia codice ▲</button>
+    <hr class="divider" style="margin:0.8rem 0">
+    <label>2. Incolla qui la risposta del tuo avversario</label>
+    <textarea id="answer-in" placeholder="Incolla il codice risposta..."></textarea>
+    <button class="btn green" style="margin-top:0.6rem; max-width:100%; font-size:0.75rem" onclick="acceptAnswer()">Connetti ▶</button>
+  </div>
+
+  <div class="card" id="join-panel" style="display:none">
+    <label>1. Incolla il codice che ti ha mandato l'host</label>
+    <textarea id="offer-in" placeholder="Incolla il codice offerta..."></textarea>
+    <button class="btn green" style="margin-top:0.6rem; max-width:100%; font-size:0.75rem" onclick="acceptOffer()">Genera risposta ▶</button>
+    <div id="answer-panel" style="display:none; margin-top:0.8rem">
+      <hr class="divider" style="margin:0.6rem 0">
+      <label>2. Copia questo codice e mandalo all'host</label>
+      <textarea id="answer-out" readonly onclick="this.select()"></textarea>
+      <button class="btn" style="margin-top:0.6rem; max-width:100%; font-size:0.75rem" onclick="copyAnswer()">Copia risposta ▲</button>
+    </div>
+  </div>
+
+  <p style="font-size:0.65rem; color:#333; text-align:center; max-width:300px; line-height:1.6; margin-top:0.5rem">
+    Entrambi i dispositivi devono avere internet o essere sulla stessa rete.<br>
+    Scambiate i codici via WhatsApp, SMS o simili.
+  </p>
+</div>
+
+<!-- GAME SCREEN -->
+<div id="screen-game">
+  <div id="score-bar">
+    <span id="score-left">0</span>
+    <span class="mid" id="score-mid">VS</span>
+    <span id="score-right">0</span>
+  </div>
+  <div id="canvas-wrap">
+    <canvas id="gc"></canvas>
+    <div id="touch-left"></div>
+    <div id="touch-right"></div>
+    <div id="msg-overlay">
+      <div class="big" id="msg-big">PRONTO?</div>
+      <div class="small" id="msg-small">Tocca per iniziare</div>
+    </div>
+  </div>
+  <div id="ctrl-bar">
+    <div class="ctrl-btn" id="up-btn">▲ SU</div>
+    <div class="ctrl-btn" id="pause-btn" onclick="togglePause()">⏸ PAUSA</div>
+    <div class="ctrl-btn" id="down-btn">▼ GIÙ</div>
+  </div>
+</div>
+
+<script>
+// ===== WebRTC =====
+let pc, dc;
+let isHost = false;
+let connected = false;
+const ICE = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] };
+
+function setStatus(msg, type) {
+  const el = document.getElementById('conn-status');
+  const colors = { ok: '#4cff91', wait: '#ffcc00', err: '#ff4c6a' };
+  el.innerHTML = `<span class="status-dot" style="background:${colors[type]||'#888'}"></span>${msg}`;
+}
+
+async function startHost() {
+  isHost = true;
+  pc = new RTCPeerConnection(ICE);
+  dc = pc.createDataChannel('pong', { ordered: false, maxRetransmits: 0 });
+  setupDC(dc);
+  pc.onicecandidate = e => { if (!e.candidate) { document.getElementById('offer-out').value = btoa(JSON.stringify(pc.localDescription)); }};
+  pc.oniceconnectionstatechange = () => handleICEState();
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  document.getElementById('host-panel').style.display = 'block';
+  setStatus('Generando codice...', 'wait');
+}
+
+function showJoin() {
+  document.getElementById('join-panel').style.display = 'block';
+  setStatus('In attesa del codice host...', 'wait');
+}
+
+async function acceptOffer() {
+  const raw = document.getElementById('offer-in').value.trim();
+  if (!raw) return;
+  isHost = false;
+  pc = new RTCPeerConnection(ICE);
+  pc.ondatachannel = e => { dc = e.channel; setupDC(dc); };
+  pc.onicecandidate = e => { if (!e.candidate) { document.getElementById('answer-out').value = btoa(JSON.stringify(pc.localDescription)); document.getElementById('answer-panel').style.display = 'block'; }};
+  pc.oniceconnectionstatechange = () => handleICEState();
+  try {
+    const desc = JSON.parse(atob(raw));
+    await pc.setRemoteDescription(desc);
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    setStatus('Generando risposta...', 'wait');
+  } catch(e) { setStatus('Codice non valido!', 'err'); }
+}
+
+async function acceptAnswer() {
+  const raw = document.getElementById('answer-in').value.trim();
+  if (!raw) return;
+  try {
+    const desc = JSON.parse(atob(raw));
+    await pc.setRemoteDescription(desc);
+    setStatus('Connessione in corso...', 'wait');
+  } catch(e) { setStatus('Codice risposta non valido!', 'err'); }
+}
+
+function handleICEState() {
+  const s = pc.iceConnectionState;
+  if (s === 'connected' || s === 'completed') {
+    connected = true;
+    setStatus('Connesso!', 'ok');
+  } else if (s === 'disconnected' || s === 'failed') {
+    setStatus('Connessione persa', 'err');
+  }
+}
+
+function setupDC(channel) {
+  channel.onopen = () => {
+    connected = true;
+    startGame();
+  };
+  channel.onmessage = e => handleRemote(JSON.parse(e.data));
+  channel.onerror = e => console.warn('DC error', e);
+}
+
+function send(obj) {
+  if (dc && dc.readyState === 'open') {
+    try { dc.send(JSON.stringify(obj)); } catch(e) {}
+  }
+}
+
+function copyOffer() {
+  const ta = document.getElementById('offer-out');
+  ta.select(); document.execCommand('copy');
+  setStatus('Codice copiato!', 'ok');
+}
+function copyAnswer() {
+  const ta = document.getElementById('answer-out');
+  ta.select(); document.execCommand('copy');
+  setStatus('Risposta copiata!', 'ok');
+}
+
+// ===== GAME =====
+const canvas = document.getElementById('gc');
+const ctx = canvas.getContext('2d');
+let W, H;
+const PAD_W = 10, PAD_MARGIN = 18;
+let PAD_H = 70;
+
+const state = {
+  padL: 0.5, padR: 0.5,
+  ball: { x: 0.5, y: 0.5, vx: 0, vy: 0 },
+  scoreL: 0, scoreR: 0,
+  running: false,
+  paused: false
+};
+
+let myPad = 'padL';
+let theirPad = 'padR';
+
+let keys = {};
+let upHeld = false, downHeld = false;
+let animId;
+
+function initCanvas() {
+  const wrap = document.getElementById('canvas-wrap');
+  W = Math.min(window.innerWidth, 480);
+  H = Math.round(W * 1.35);
+  canvas.width = W;
+  canvas.height = H;
+  PAD_H = Math.round(H * 0.13);
+  state.padL = 0.5;
+  state.padR = 0.5;
+}
+
+function startGame() {
+  document.getElementById('screen-connect').classList.remove('active');
+  document.getElementById('screen-game').classList.add('active');
+  initCanvas();
+
+  myPad = isHost ? 'padL' : 'padR';
+  theirPad = isHost ? 'padR' : 'padL';
+
+  setupControls();
+  resetBall(true);
+  showMsg('PRONTO?', 'Tocca lo schermo per iniziare');
+  loop();
+}
+
+function resetBall(fresh) {
+  state.ball.x = 0.5;
+  state.ball.y = 0.5;
+  if (fresh) {
+    state.ball.vx = 0;
+    state.ball.vy = 0;
+    state.running = false;
+  } else {
+    const sp = 0.012;
+    state.ball.vx = (Math.random() > 0.5 ? 1 : -1) * sp;
+    state.ball.vy = (Math.random() * 0.6 - 0.3) * sp;
+    state.running = true;
+  }
+}
+
+function handleRemote(msg) {
+  if (msg.type === 'pad') {
+    state[theirPad] = msg.v;
+  } else if (msg.type === 'state' && isHost === false) {
+    state.ball.x = msg.bx;
+    state.ball.y = msg.by;
+    state.scoreL = msg.sl;
+    state.scoreR = msg.sr;
+    updateScoreUI();
+  } else if (msg.type === 'start') {
+    hideMsg();
+    state.running = true;
+    state.ball.vx = msg.vx;
+    state.ball.vy = msg.vy;
+  } else if (msg.type === 'score') {
+    state.scoreL = msg.sl;
+    state.scoreR = msg.sr;
+    updateScoreUI();
+    resetBall(false);
+    if (!isHost) {
+      showMsg('PUNTO!', 'Attendi il prossimo...');
+      setTimeout(hideMsg, 800);
+    }
+  } else if (msg.type === 'pause') {
+    state.paused = msg.v;
+    if (state.paused) showMsg('PAUSA', ''); else hideMsg();
+  }
+}
+
+function gameLoop() {
+  if (!state.running || state.paused) return;
+
+  if (isHost) {
+    const b = state.ball;
+    const spd = 0.012 + (state.scoreL + state.scoreR) * 0.0005;
+
+    b.x += b.vx;
+    b.y += b.vy;
+
+    // wall bounce top/bottom
+    if (b.y < 0.02) { b.y = 0.02; b.vy = Math.abs(b.vy); }
+    if (b.y > 0.98) { b.y = 0.98; b.vy = -Math.abs(b.vy); }
+
+    // paddle hit LEFT
+    const pLY = state.padL;
+    const pLx = (PAD_MARGIN + PAD_W) / W;
+    if (b.vx < 0 && b.x < pLx + 0.01 && b.x > pLx - 0.02) {
+      const relY = (b.y - pLY);
+      if (Math.abs(relY) < (PAD_H / H) * 0.6) {
+        b.vx = Math.abs(b.vx) * 1.04;
+        b.vy = relY * 3.5 * Math.abs(b.vx);
+        b.x = pLx + 0.012;
+      }
+    }
+    // paddle hit RIGHT
+    const pRY = state.padR;
+    const pRx = 1 - (PAD_MARGIN + PAD_W) / W;
+    if (b.vx > 0 && b.x > pRx - 0.01 && b.x < pRx + 0.02) {
+      const relY = (b.y - pRY);
+      if (Math.abs(relY) < (PAD_H / H) * 0.6) {
+        b.vx = -Math.abs(b.vx) * 1.04;
+        b.vy = relY * 3.5 * Math.abs(b.vx);
+        b.x = pRx - 0.012;
+      }
+    }
+
+    // score
+    if (b.x < 0) {
+      state.scoreR++;
+      updateScoreUI();
+      send({ type: 'score', sl: state.scoreL, sr: state.scoreR });
+      resetBall(false);
+    }
+    if (b.x > 1) {
+      state.scoreL++;
+      updateScoreUI();
+      send({ type: 'score', sl: state.scoreL, sr: state.scoreR });
+      resetBall(false);
+    }
+
+    // sync ball to client ~30fps
+    send({ type: 'state', bx: b.x, by: b.y, sl: state.scoreL, sr: state.scoreR });
+  }
+}
+
+function movePad() {
+  const speed = 0.025;
+  if (upHeld) state[myPad] = Math.max(0.07, state[myPad] - speed);
+  if (downHeld) state[myPad] = Math.min(0.93, state[myPad] + speed);
+  if (upHeld || downHeld) send({ type: 'pad', v: state[myPad] });
+}
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+
+  // center dashed line
+  ctx.setLineDash([8, 12]);
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(W/2, 0); ctx.lineTo(W/2, H); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // paddles
+  const drawPad = (norm, x, flip) => {
+    const py = norm * H - PAD_H / 2;
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    ctx.fillRect(x, py, PAD_W, PAD_H);
+    // glow
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    ctx.fillRect(x + (flip ? -3 : PAD_W), py + 4, 4, PAD_H - 8);
+  };
+  drawPad(state.padL, PAD_MARGIN, false);
+  drawPad(state.padR, W - PAD_MARGIN - PAD_W, true);
+
+  // ball
+  const bx = state.ball.x * W;
+  const by = state.ball.y * H;
+  const br = Math.max(6, W * 0.018);
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI * 2); ctx.fill();
+  // ball trail glow
+  ctx.fillStyle = 'rgba(255,255,255,0.08)';
+  ctx.beginPath(); ctx.arc(bx - state.ball.vx * W * 4, by - state.ball.vy * H * 4, br * 2, 0, Math.PI * 2); ctx.fill();
+}
+
+function loop() {
+  movePad();
+  gameLoop();
+  draw();
+  animId = requestAnimationFrame(loop);
+}
+
+function updateScoreUI() {
+  document.getElementById('score-left').textContent = state.scoreL;
+  document.getElementById('score-right').textContent = state.scoreR;
+}
+
+function showMsg(big, small) {
+  document.getElementById('msg-big').textContent = big;
+  document.getElementById('msg-small').textContent = small;
+  document.getElementById('msg-overlay').classList.add('show');
+}
+function hideMsg() {
+  document.getElementById('msg-overlay').classList.remove('show');
+}
+
+function startRound() {
+  if (!connected) return;
+  if (!state.running && isHost) {
+    const sp = 0.012;
+    const vx = (Math.random() > 0.5 ? 1 : -1) * sp;
+    const vy = (Math.random() * 0.6 - 0.3) * sp;
+    state.ball.vx = vx;
+    state.ball.vy = vy;
+    state.running = true;
+    hideMsg();
+    send({ type: 'start', vx, vy });
+  }
+}
+
+function togglePause() {
+  if (!state.running && !state.paused) return;
+  if (!isHost) return;
+  state.paused = !state.paused;
+  send({ type: 'pause', v: state.paused });
+  if (state.paused) showMsg('PAUSA', 'Tocca per riprendere');
+  else hideMsg();
+  document.getElementById('pause-btn').textContent = state.paused ? '▶ RIPRENDI' : '⏸ PAUSA';
+}
+
+function setupControls() {
+  // Touch on canvas area
+  const touchL = document.getElementById('touch-left');
+  const touchR = document.getElementById('touch-right');
+  canvas.addEventListener('touchstart', e => { e.preventDefault(); startRound(); if (state.paused && isHost) togglePause(); });
+
+  // Button controls
+  const upBtn = document.getElementById('up-btn');
+  const downBtn = document.getElementById('down-btn');
+
+  upBtn.addEventListener('touchstart', e => { e.preventDefault(); upHeld = true; });
+  upBtn.addEventListener('touchend', e => { e.preventDefault(); upHeld = false; });
+  downBtn.addEventListener('touchstart', e => { e.preventDefault(); downHeld = true; });
+  downBtn.addEventListener('touchend', e => { e.preventDefault(); downHeld = false; });
+  upBtn.addEventListener('mousedown', () => upHeld = true);
+  upBtn.addEventListener('mouseup', () => upHeld = false);
+  downBtn.addEventListener('mousedown', () => downHeld = true);
+  downBtn.addEventListener('mouseup', () => downHeld = false);
+
+  // Keyboard
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') upHeld = true;
+    if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') downHeld = true;
+    if (e.key === ' ') { startRound(); }
+  });
+  document.addEventListener('keyup', e => {
+    if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') upHeld = false;
+    if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') downHeld = false;
+  });
+
+  // Gyroscope / tilt (opzionale, solo su HTTPS con permesso)
+  if (window.DeviceOrientationEvent) {
+    let baseGamma = null;
+    window.addEventListener('deviceorientation', e => {
+      if (!state.running) return;
+      if (baseGamma === null) baseGamma = e.gamma;
+      const delta = (e.gamma - baseGamma) / 45;
+      state[myPad] = Math.max(0.07, Math.min(0.93, 0.5 + delta));
+      send({ type: 'pad', v: state[myPad] });
+    });
+  }
+}
+
+window.addEventListener('resize', () => {
+  if (document.getElementById('screen-game').classList.contains('active')) initCanvas();
+});
+</script>
+</body>
+</html>
